@@ -1,0 +1,94 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User account and merchant store profile",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 256 },
+        "name": { "type": "string", "maxLength": 128 },
+        "storeName": { "type": "string", "maxLength": 128 },
+        "industry": { "type": "string", "maxLength": 64 },
+        "role": { "type": "string", "enum": ["merchant", "superadmin"] },
+        "planTier": { "type": "string", "enum": ["starter", "pro", "enterprise"] },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "email", "name", "role"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Store inventory product item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "storeId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 256 },
+        "price": { "type": "number" },
+        "originalPrice": { "type": "number" },
+        "stock": { "type": "number" },
+        "category": { "type": "string", "maxLength": 64 },
+        "description": { "type": "string", "maxLength": 2048 },
+        "imageUrl": { "type": "string", "maxLength": 1024 },
+        "images": { "type": "array" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "storeId", "name", "price", "stock"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Customer order generated via WhatsApp or Web storefront",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "storeId": { "type": "string", "maxLength": 128 },
+        "customerName": { "type": "string", "maxLength": 128 },
+        "customerPhone": { "type": "string", "maxLength": 64 },
+        "total": { "type": "number" },
+        "currency": { "type": "string", "maxLength": 10 },
+        "status": { "type": "string", "enum": ["pending", "paid", "shipped", "delivered", "cancelled"] },
+        "items": { "type": "array" },
+        "deliveryAddress": { "type": "string", "maxLength": 512 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "storeId", "customerName", "total", "status"]
+    },
+    "StoreSettings": {
+      "title": "StoreSettings",
+      "description": "Merchant bot settings, WhatsApp status, and payment configuration",
+      "type": "object",
+      "properties": {
+        "storeId": { "type": "string", "maxLength": 128 },
+        "storeName": { "type": "string", "maxLength": 128 },
+        "whatsappConnected": { "type": "boolean" },
+        "whatsappPhoneNumber": { "type": "string", "maxLength": 64 },
+        "whatsappVerifiedName": { "type": "string", "maxLength": 128 },
+        "activeDiscountCode": { "type": "string", "maxLength": 32 },
+        "discountPercent": { "type": "number" },
+        "currency": { "type": "string", "maxLength": 10 },
+        "monthlyAiRepliesLimit": { "type": "number" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["storeId", "storeName"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile data accessible by the user themselves or admin"
+    },
+    "/stores/{storeId}/products/{productId}": {
+      "schema": "Product",
+      "description": "Products catalog for a given merchant store"
+    },
+    "/stores/{storeId}/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Orders received by a given merchant store"
+    },
+    "/stores/{storeId}/settings/current": {
+      "schema": "StoreSettings",
+      "description": "Live configuration and WhatsApp connection status for a merchant store"
+    }
+  }
+}

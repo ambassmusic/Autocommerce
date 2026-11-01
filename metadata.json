@@ -1,0 +1,6 @@
+{
+  "name": "WhatsApp AI Store & Automation Hub",
+  "description": "Turnkey conversational WhatsApp commerce and retail operations platform with live store simulator, AI sales agent, inventory sync, and order CRM.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
