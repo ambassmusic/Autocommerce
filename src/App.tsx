@@ -177,6 +177,7 @@ export default function App() {
         },
         body: JSON.stringify({
           storeName: settings.storeName || 'Our WhatsApp Store',
+          settings: settings,
           products: products.map(p => ({
             id: p.id,
             name: p.name,
@@ -186,12 +187,15 @@ export default function App() {
             description: p.description,
             image: p.image?.startsWith('data:') ? 'uploaded_image' : p.image,
             sizes: p.sizes,
-            colors: p.colors
+            colors: p.colors,
+            productType: p.productType,
+            digitalFileUrl: p.digitalFileUrl,
+            digitalDownloadNotes: p.digitalDownloadNotes
           }))
         })
       }).catch(() => {});
     }
-  }, [products, settings.storeName, currentUser?.id]);
+  }, [products, settings, currentUser?.id]);
 
   // Switch Business Industry
   const handleSwitchIndustry = (industry: BusinessIndustry) => {

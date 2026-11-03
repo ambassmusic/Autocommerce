@@ -702,8 +702,8 @@ export const INITIAL_BOT_SETTINGS: BotSettings = {
     }
   },
 
-  // WhatsApp Connection (Supports Evolution API / Baileys No-CAC WebSockets & Meta WABA)
-  connectionEngine: 'evolution_baileys',
+  // WhatsApp Connection (Official Meta Cloud API 1-Click & Evolution API)
+  connectionEngine: 'meta_cloud_waba',
   evolutionConfig: {
     instanceName: 'evolution_ng_instance',
     serverUrl: 'https://api.evolution-server.net',
@@ -726,6 +726,8 @@ export const INITIAL_BOT_SETTINGS: BotSettings = {
   whatsappVerifiedName: '',
   whatsappConnected: false,
   metaWabaId: '',
+  metaPhoneNumberId: '',
+  metaAccessToken: '',
   autoSyncCatalog: false,
 
   // Subscription Status
@@ -936,11 +938,15 @@ export const INITIAL_GEMINI_KEYS: GeminiKeyRotation[] = [
 
 export const INITIAL_WHATSAPP_CLOUD_API: WhatsAppCloudApiConfig = {
   status: 'connected',
-  wabaId: '108492019823091',
+  appId: '2206505670077954',
+  appSecret: '••••••••••••••••••••••••••••••••',
+  systemAccessToken: 'EAABvZA...992',
+  embeddedSignupEnabled: true,
+  wabaId: '1440312700767064',
   phoneNumberId: '109283019823901',
   displayPhoneNumber: '+1 (555) 019-9482',
   tokenPreview: 'EAAO82910...9812903',
-  webhookUrl: 'https://api.omnichat.ai/v1/webhooks/whatsapp',
+  webhookUrl: 'https://ais-dev-lmwkdqxzmtvt53bkdoqhpm-763361010399.europe-west2.run.app/api/whatsapp/webhook',
   verifyToken: 'omnichat_verify_token_prod_9921',
   apiVersion: 'v21.0',
   lastPingMs: 48

@@ -43,6 +43,7 @@ export const WhatsAppSimulator: React.FC<WhatsAppSimulatorProps> = ({
   // Checkout form state
   const [customerName, setCustomerName] = useState('Alex Mercer');
   const [customerPhone, setCustomerPhone] = useState('+1 (415) 555-0199');
+  const [customerEmail, setCustomerEmail] = useState('alex.mercer@gmail.com');
   const [customerAddress, setCustomerAddress] = useState('88 King Street, Suite 402, San Francisco, CA');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('paystack');
 
@@ -109,21 +110,27 @@ export const WhatsAppSimulator: React.FC<WhatsAppSimulatorProps> = ({
     });
   };
 
+  const isDigitalOnly = cart.length > 0 && cart.every(item => item.product.productType === 'digital');
   const subtotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
   const discount = settings.discountPercentage > 0 && subtotal > 0 ? (subtotal * settings.discountPercentage) / 100 : 0;
-  const shipping = subtotal >= settings.freeShippingThreshold || subtotal === 0 ? 0 : settings.defaultShippingFee;
+  const shipping = isDigitalOnly ? 0 : (subtotal >= settings.freeShippingThreshold || subtotal === 0 ? 0 : settings.defaultShippingFee);
   const total = Math.max(0, subtotal - discount + shipping);
 
   const handleCompleteOrder = () => {
     if (cart.length === 0) return;
 
     const orderNumber = `WA-#${Math.floor(1000 + Math.random() * 9000)}`;
+    const effectivePaymentStatus: Order['paymentStatus'] = 
+      (!isDigitalOnly && paymentMethod === 'cash_on_delivery') ? 'cod' : 'pending';
+
     const newOrder: Order = {
       id: `ord_${Date.now()}`,
       orderNumber,
       customerName,
       customerPhone,
-      customerAddress,
+      customerEmail,
+      customerAddress: isDigitalOnly ? 'Digital Delivery (Direct Link)' : customerAddress,
+      productType: isDigitalOnly ? 'digital' : 'physical',
       industry: settings.industry,
       items: [...cart],
       subtotal,
@@ -131,12 +138,13 @@ export const WhatsAppSimulator: React.FC<WhatsAppSimulatorProps> = ({
       shipping,
       total,
       paymentMethod,
-      paymentStatus: paymentMethod === 'cash_on_delivery' ? 'cod' : 'completed',
+      paymentStatus: effectivePaymentStatus,
+      digitalDeliveryStatus: isDigitalOnly ? 'pending' : undefined,
       status: 'new',
-      trackingNumber: `EXP-WA-${Math.floor(100000 + Math.random() * 900000)}`,
+      trackingNumber: isDigitalOnly ? `DIGI-${Math.floor(100000 + Math.random() * 900000)}` : `EXP-WA-${Math.floor(100000 + Math.random() * 900000)}`,
       createdAt: 'Just now',
       updatedAt: 'Just now',
-      notes: `Order completed via WhatsApp (${paymentMethod.toUpperCase()})`
+      notes: `Order created via WhatsApp (${paymentMethod.toUpperCase()}) - ${isDigitalOnly ? 'Digital Asset (Pending payment)' : 'Physical Item (Pending gateway verification)'}`
     };
 
     onNewOrder(newOrder);
@@ -144,7 +152,7 @@ export const WhatsAppSimulator: React.FC<WhatsAppSimulatorProps> = ({
     setIsCheckoutOpen(false);
     setIsCartDrawerOpen(false);
 
-    onSendMessage(`Confirmed order ${orderNumber}! Paid via ${paymentMethod.replace('_', ' ').toUpperCase()}.`);
+    onSendMessage(`Order ${orderNumber} created! Payment initiated via ${paymentMethod.replace('_', ' ').toUpperCase()} (Status: Pending Verification).`);
   };
 
   return (
@@ -838,14 +846,38 @@ export const WhatsAppSimulator: React.FC<WhatsAppSimulatorProps> = ({
                 </div>
 
                 <div>
-                  <label className="text-slate-600 text-[11px] font-medium block mb-0.5">Delivery Address</label>
-                  <textarea
-                    rows={2}
-                    value={customerAddress}
-                    onChange={(e) => setCustomerAddress(e.target.value)}
+                  <label className="text-slate-600 text-[11px] font-medium block mb-0.5">
+                    {isDigitalOnly ? 'Delivery Email (Digital Access & License)' : 'Email Address (Order Tracking)'}
+                  </label>
+                  <input
+                    type="email"
+                    value={customerEmail}
+                    onChange={(e) => setCustomerEmail(e.target.value)}
+                    placeholder="name@example.com"
                     className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>
+
+                {isDigitalOnly ? (
+                  <div className="p-2.5 bg-sky-50 border border-sky-200 rounded-xl text-[11px] text-sky-900 flex items-start gap-2">
+                    <span className="text-base">📥</span>
+                    <div>
+                      <strong className="block text-sky-950 font-semibold">Digital Product Order</strong>
+                      <span>Direct download links and license tokens will be sent to your email instantly once payment is verified. No physical shipping required.</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="text-slate-600 text-[11px] font-medium block mb-0.5">Delivery Address (Street, City, State)</label>
+                    <textarea
+                      rows={2}
+                      value={customerAddress}
+                      onChange={(e) => setCustomerAddress(e.target.value)}
+                      placeholder="e.g. 14 Adeola Odeku St, Victoria Island, Lagos"
+                      className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                    />
+                  </div>
+                )}
 
                 {/* Select Multi-Gateway Payment */}
                 <div>
@@ -1020,27 +1052,29 @@ export const WhatsAppSimulator: React.FC<WhatsAppSimulatorProps> = ({
                       )}
                     </label>
 
-                    {/* Cash on Delivery */}
-                    <label 
-                      onClick={() => setPaymentMethod('cash_on_delivery')}
-                      className={`flex items-center justify-between p-2 rounded-xl border cursor-pointer transition-colors ${
-                        paymentMethod === 'cash_on_delivery' 
-                          ? 'bg-slate-100 border-slate-400 text-slate-900 font-semibold' 
-                          : 'bg-slate-50 border-slate-200 text-slate-700'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <Truck className="w-4 h-4 text-slate-600" />
-                        <span className="text-xs">Cash on Delivery (Pay at Door)</span>
-                      </div>
-                      <input 
-                        type="radio" 
-                        name="payMethod" 
-                        checked={paymentMethod === 'cash_on_delivery'} 
-                        onChange={() => setPaymentMethod('cash_on_delivery')} 
-                        className="accent-slate-600"
-                      />
-                    </label>
+                    {/* Cash on Delivery (Physical products only) */}
+                    {!isDigitalOnly && (
+                      <label 
+                        onClick={() => setPaymentMethod('cash_on_delivery')}
+                        className={`flex items-center justify-between p-2 rounded-xl border cursor-pointer transition-colors ${
+                          paymentMethod === 'cash_on_delivery' 
+                            ? 'bg-slate-100 border-slate-400 text-slate-900 font-semibold' 
+                            : 'bg-slate-50 border-slate-200 text-slate-700'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Truck className="w-4 h-4 text-slate-600" />
+                          <span className="text-xs">Cash on Delivery (Pay at Door)</span>
+                        </div>
+                        <input 
+                          type="radio" 
+                          name="payMethod" 
+                          checked={paymentMethod === 'cash_on_delivery'} 
+                          onChange={() => setPaymentMethod('cash_on_delivery')} 
+                          className="accent-slate-600"
+                        />
+                      </label>
+                    )}
                   </div>
                 </div>
 

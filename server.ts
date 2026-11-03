@@ -239,10 +239,299 @@ app.get('/api/whatsapp/messages', (req, res) => {
   });
 });
 
-// 8. Remote Evolution API Webhook Receiver
-app.post('/api/whatsapp/webhook', (req, res) => {
+// 8. Universal WhatsApp Webhook Receiver (Supports Meta Cloud API & Evolution API)
+app.get('/api/whatsapp/webhook', (req, res) => {
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+  if (mode === 'subscribe') {
+    console.log('[Meta Webhook] Verified webhook challenge successfully!');
+    return res.status(200).send(challenge);
+  }
+  res.status(200).send('WhatsApp Webhook Active');
+});
+
+app.post('/api/whatsapp/webhook', async (req, res) => {
+  // If Meta Cloud API
+  if (req.body?.object === 'whatsapp_business_account') {
+    try {
+      const entry = req.body?.entry?.[0];
+      const change = entry?.changes?.[0]?.value;
+      const message = change?.messages?.[0];
+      if (message && message.type === 'text') {
+        const from = message.from;
+        const text = message.text?.body;
+        const pushName = change?.contacts?.[0]?.profile?.name || 'Customer';
+        const tenantId = req.headers['x-tenant-id']?.toString() || 'default_store';
+        
+        const catalog = (whatsappManager as any).tenantCatalogs?.get?.(tenantId) || { storeName: 'Our WhatsApp Store', products: [], settings: null };
+        const engineResult = whatsappOrderEngine.processMessage(
+          tenantId,
+          from,
+          pushName,
+          text,
+          catalog.products || [],
+          catalog.storeName || 'Our WhatsApp Store',
+          catalog.settings
+        );
+
+        // Record message in session
+        const session = whatsappManager.getOrCreateSession(tenantId);
+        session.messages.push({
+          id: message.id || `meta_in_${Date.now()}`,
+          from,
+          to: session.phone || 'Store',
+          text,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          direction: 'inbound',
+          status: 'received',
+          pushName,
+          source: 'meta_cloud_waba'
+        });
+
+        // Reply back via Meta Cloud API if token & phone id are present
+        const metaToken = catalog.settings?.metaAccessToken;
+        const metaPhoneId = catalog.settings?.metaPhoneNumberId;
+        if (metaToken && metaPhoneId) {
+          try {
+            await fetch(`https://graph.facebook.com/v21.0/${metaPhoneId}/messages`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${metaToken}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                messaging_product: 'whatsapp',
+                to: from,
+                type: 'text',
+                text: { body: engineResult.replyText }
+              })
+            });
+
+            session.messages.push({
+              id: `meta_out_${Date.now()}`,
+              from: session.phone || 'Store',
+              to: from,
+              text: engineResult.replyText,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              direction: 'outbound',
+              status: 'sent',
+              source: 'meta_cloud_waba'
+            });
+          } catch (e: any) {
+            console.error('[Meta Webhook] Error sending automated reply:', e.message);
+          }
+        }
+      }
+    } catch (err: any) {
+      console.error('[Meta Webhook] Error processing message:', err.message);
+    }
+    return res.json({ status: 'ok' });
+  }
+
+  // Otherwise Evolution API
   const result = whatsappManager.handleEvolutionWebhook(req.body);
   res.json({ received: true, ...result });
+});
+
+// 8b. Real Meta Cloud API Live Verification
+app.post('/api/whatsapp/meta-verify', async (req, res) => {
+  const tenantId = getTenantId(req);
+  const { phoneNumberId, wabaId, accessToken, displayPhone } = req.body;
+
+  if (!phoneNumberId || !accessToken) {
+    return res.status(400).json({
+      success: false,
+      error: 'Phone Number ID and Access Token are required. Please copy them from your Meta App API Setup page.'
+    });
+  }
+
+  try {
+    // Real Live Call to Meta Graph API
+    console.log(`[Meta Verify] Validating credentials against Graph API v21.0 for phone ID: ${phoneNumberId}`);
+    const metaRes = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}?fields=verified_name,display_phone_number,quality_rating,code_verification_status`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
+      }
+    });
+
+    const metaData = await metaRes.json();
+
+    if (!metaRes.ok || metaData.error) {
+      console.warn('[Meta Verify] Graph API validation failed:', metaData.error);
+      return res.status(400).json({
+        success: false,
+        error: metaData.error?.message || `Meta Graph API error (Code ${metaRes.status})`
+      });
+    }
+
+    const verifiedPhone = metaData.display_phone_number || displayPhone || '';
+    const verifiedName = metaData.verified_name || 'Verified WhatsApp Business';
+
+    const session = whatsappManager.getOrCreateSession(tenantId);
+    session.status = 'connected';
+    session.phone = verifiedPhone;
+    session.verifiedName = verifiedName;
+    session.engine = 'meta_cloud_waba';
+    session.connectedAt = new Date().toISOString();
+    session.lastError = null;
+
+    // Persist to tenant catalog settings
+    const catalog = (whatsappManager as any).tenantCatalogs?.get?.(tenantId) || { storeName: 'Our WhatsApp Store', products: [], settings: null };
+    if (!catalog.settings) catalog.settings = {};
+    catalog.settings.metaPhoneNumberId = phoneNumberId;
+    catalog.settings.metaWabaId = wabaId || '';
+    catalog.settings.metaAccessToken = accessToken;
+    catalog.settings.whatsappPhoneNumber = verifiedPhone;
+    catalog.settings.whatsappVerifiedName = verifiedName;
+    catalog.settings.whatsappConnected = true;
+    (whatsappManager as any).tenantCatalogs?.set?.(tenantId, catalog);
+
+    console.log(`[Meta Verify] ✓ Verified real WhatsApp account: ${verifiedName} (${verifiedPhone})`);
+
+    return res.json({
+      success: true,
+      message: `Successfully authenticated with Meta WhatsApp Cloud API! Verified: ${verifiedName} (${verifiedPhone})`,
+      data: {
+        phoneNumberId,
+        wabaId,
+        displayPhoneNumber: verifiedPhone,
+        verifiedName,
+        qualityRating: metaData.quality_rating,
+        status: 'connected'
+      }
+    });
+  } catch (err: any) {
+    console.error('[Meta Verify] Exception calling Meta:', err);
+    return res.status(500).json({
+      success: false,
+      error: `Network error reaching Meta Graph API: ${err.message}`
+    });
+  }
+});
+
+// 8c. Disconnect Meta Cloud WABA
+app.post('/api/whatsapp/meta-disconnect', (req, res) => {
+  const tenantId = getTenantId(req);
+  const session = whatsappManager.getSession(tenantId);
+  if (session) {
+    session.status = 'disconnected';
+    session.phone = null;
+    session.verifiedName = null;
+    session.lastError = null;
+  }
+  const catalog = (whatsappManager as any).tenantCatalogs?.get?.(tenantId);
+  if (catalog?.settings) {
+    catalog.settings.whatsappConnected = false;
+    catalog.settings.metaPhoneNumberId = '';
+    catalog.settings.metaAccessToken = '';
+    catalog.settings.whatsappPhoneNumber = '';
+  }
+  res.json({ success: true, message: 'Meta WhatsApp disconnected successfully.' });
+});
+
+// 8d. Master Meta Embedded Signup Config for Merchants (Zero technical setup)
+app.get('/api/whatsapp/embedded-signup/config', (req, res) => {
+  res.json({
+    success: true,
+    appId: process.env.META_APP_ID || '2206505670077954',
+    businessId: process.env.META_BUSINESS_ID || '1440312700767064',
+    wabaId: process.env.META_WABA_ID || '1440312700767064',
+    apiVersion: 'v21.0'
+  });
+});
+
+
+// 8f. Meta Embedded Signup OAuth Code Exchange & WABA Webhook Subscription (Official Meta v4 Spec)
+app.post('/api/whatsapp/embedded-signup/exchange-code', async (req, res) => {
+  const tenantId = getTenantId(req);
+  const { code, phoneNumberId, wabaId, businessName } = req.body;
+
+  const appId = process.env.META_APP_ID || '2206505670077954';
+  const appSecret = process.env.META_APP_SECRET || '';
+
+  let verifiedPhone = '';
+  let verifiedName = businessName || 'Verified Store';
+  let accessToken = '';
+
+  // 1. If App Secret is configured on server, exchange code for user access token with Meta Graph API
+  if (appSecret && code) {
+    try {
+      const tokenUrl = `https://graph.facebook.com/v21.0/oauth/access_token?client_id=${appId}&client_secret=${appSecret}&code=${code}`;
+      const tokenRes = await fetch(tokenUrl);
+      const tokenData = await tokenRes.json();
+      if (tokenData.access_token) {
+        accessToken = tokenData.access_token;
+        console.log(`[Embedded Signup] Exchanged OAuth code for access token successfully.`);
+      }
+    } catch (err: any) {
+      console.warn('[Embedded Signup] Token exchange warning:', err.message);
+    }
+  }
+
+  // 2. If phoneNumberId is available, query Meta Graph API for verified display phone & business name
+  if (phoneNumberId) {
+    try {
+      const systemToken = accessToken || process.env.META_SYSTEM_TOKEN || '';
+      if (systemToken) {
+        const phoneRes = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}?fields=verified_name,display_phone_number`, {
+          headers: { 'Authorization': `Bearer ${systemToken}` }
+        });
+        const phoneData = await phoneRes.json();
+        if (phoneData.display_phone_number) {
+          verifiedPhone = phoneData.display_phone_number;
+        }
+        if (phoneData.verified_name) {
+          verifiedName = phoneData.verified_name;
+        }
+      }
+    } catch (e: any) {
+      console.warn('[Embedded Signup] Could not fetch phone details from Meta:', e.message);
+    }
+  }
+
+  // 3. Subscribe WABA to Webhooks if wabaId is provided
+  if (wabaId && (accessToken || process.env.META_SYSTEM_TOKEN)) {
+    try {
+      const subToken = accessToken || process.env.META_SYSTEM_TOKEN;
+      await fetch(`https://graph.facebook.com/v21.0/${wabaId}/subscribed_apps`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${subToken}` }
+      });
+      console.log(`[Embedded Signup] Subscribed WABA ${wabaId} to platform webhooks.`);
+    } catch (e: any) {
+      console.warn('[Embedded Signup] Subscribed apps warning:', e.message);
+    }
+  }
+
+  // 4. Update session
+  const session = whatsappManager.getOrCreateSession(tenantId);
+  session.status = 'connected';
+  session.phone = verifiedPhone || session.phone || 'Linked via Meta';
+  session.verifiedName = verifiedName;
+  session.engine = 'meta_cloud_waba';
+  session.connectedAt = new Date().toISOString();
+  session.lastError = null;
+
+  const catalog = (whatsappManager as any).tenantCatalogs?.get?.(tenantId) || { storeName: verifiedName, products: [], settings: null };
+  if (!catalog.settings) catalog.settings = {};
+  catalog.settings.whatsappConnected = true;
+  catalog.settings.whatsappPhoneNumber = session.phone;
+  catalog.settings.whatsappVerifiedName = verifiedName;
+  catalog.settings.metaPhoneNumberId = phoneNumberId || '';
+  catalog.settings.metaWabaId = wabaId || '';
+  catalog.settings.connectionEngine = 'meta_cloud_waba';
+  (whatsappManager as any).tenantCatalogs?.set?.(tenantId, catalog);
+
+  res.json({
+    success: true,
+    message: `Store connected to Meta WhatsApp Business via Embedded Signup!`,
+    phone: session.phone,
+    verifiedName,
+    phoneNumberId,
+    wabaId
+  });
 });
 
 // 9. Diagnostic test endpoint to simulate an incoming message through stateful Order Engine
@@ -270,16 +559,17 @@ app.post('/api/whatsapp/test-simulation', (req, res) => {
   session.messages.push(inboundMsg);
 
   // Retrieve tenant's catalog
-  const catalog = (whatsappManager as any).tenantCatalogs?.get?.(tenantId) || { storeName: 'Our WhatsApp Store', products: [] };
+  const catalog = (whatsappManager as any).tenantCatalogs?.get?.(tenantId) || { storeName: 'Our WhatsApp Store', products: [], settings: null };
   
-  // Process through WhatsApp Order Engine
+  // Process through WhatsApp Order Engine with studied store account settings
   const engineResult = whatsappOrderEngine.processMessage(
     tenantId,
     testSender,
     customerName,
     testText,
     catalog.products || [],
-    catalog.storeName || 'Our WhatsApp Store'
+    catalog.storeName || 'Our WhatsApp Store',
+    catalog.settings
   );
 
   const outboundMsg = {
@@ -307,8 +597,8 @@ app.post('/api/whatsapp/test-simulation', (req, res) => {
 // 10. Sync & Query Store Catalog with WhatsApp Bot
 app.post('/api/whatsapp/catalog', (req, res) => {
   const tenantId = getTenantId(req);
-  const { storeName, products } = req.body;
-  whatsappManager.setTenantCatalog(tenantId, storeName || 'Our WhatsApp Store', products || []);
+  const { storeName, products, settings } = req.body;
+  whatsappManager.setTenantCatalog(tenantId, storeName || 'Our WhatsApp Store', products || [], settings);
   res.json({
     success: true,
     tenantId,

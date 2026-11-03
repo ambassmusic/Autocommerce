@@ -721,10 +721,65 @@ export const SuperAdminConsole: React.FC<SuperAdminConsoleProps> = ({
                 </button>
               </div>
 
+              <div className="p-4 bg-purple-50/70 border border-purple-200 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs mb-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-purple-950 text-sm">SaaS 1-Click Meta Embedded Signup (OAuth)</span>
+                    <span className="px-2 py-0.5 bg-purple-200 text-purple-900 font-bold text-[10px] rounded-full">
+                      Zero-Tech Merchant Onboarding
+                    </span>
+                  </div>
+                  <p className="text-purple-800 text-[11px] leading-relaxed">
+                    When enabled, your merchants connect their own WhatsApp in 1 click using Facebook login. They never need Meta developer accounts or API keys.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = !whatsappConfig.embeddedSignupEnabled;
+                    setWhatsappConfig(prev => ({ ...prev, embeddedSignupEnabled: next }));
+                    onToast(`1-Click Embedded Signup is now ${next ? 'ACTIVATED' : 'DEACTIVATED'} for all store merchants.`);
+                  }}
+                  className={`px-3.5 py-1.5 rounded-xl font-bold text-xs transition-colors shrink-0 ${
+                    whatsappConfig.embeddedSignupEnabled
+                      ? 'bg-purple-600 text-white hover:bg-purple-500'
+                      : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                  }`}
+                >
+                  {whatsappConfig.embeddedSignupEnabled ? '✓ 1-Click OAuth Active' : 'Enable 1-Click OAuth'}
+                </button>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                 <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
                   <div>
-                    <label className="text-slate-600 font-medium block mb-1">WhatsApp Business Account ID (WABA)</label>
+                    <label className="text-slate-600 font-medium block mb-1">
+                      Master Meta App ID (From developers.facebook.com)
+                    </label>
+                    <input
+                      type="text"
+                      value={whatsappConfig.appId || '2206505670077954'}
+                      onChange={(e) => setWhatsappConfig({ ...whatsappConfig, appId: e.target.value })}
+                      placeholder="e.g. 2206505670077954"
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 font-mono text-xs text-slate-900 focus:outline-none focus:border-purple-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-slate-600 font-medium block mb-1">
+                      Master Meta App Secret
+                    </label>
+                    <input
+                      type="password"
+                      value={whatsappConfig.appSecret || ''}
+                      onChange={(e) => setWhatsappConfig({ ...whatsappConfig, appSecret: e.target.value })}
+                      placeholder="App Secret from Meta App Settings"
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 font-mono text-xs text-slate-900 focus:outline-none focus:border-purple-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-slate-600 font-medium block mb-1">Platform WhatsApp Business Account ID (WABA)</label>
                     <input
                       type="text"
                       value={whatsappConfig.wabaId}
@@ -734,21 +789,11 @@ export const SuperAdminConsole: React.FC<SuperAdminConsoleProps> = ({
                   </div>
 
                   <div>
-                    <label className="text-slate-600 font-medium block mb-1">Phone Number ID</label>
+                    <label className="text-slate-600 font-medium block mb-1">Platform Phone Number ID</label>
                     <input
                       type="text"
                       value={whatsappConfig.phoneNumberId}
                       onChange={(e) => setWhatsappConfig({ ...whatsappConfig, phoneNumberId: e.target.value })}
-                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 font-mono text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-slate-600 font-medium block mb-1">Display Phone Number</label>
-                    <input
-                      type="text"
-                      value={whatsappConfig.displayPhoneNumber}
-                      onChange={(e) => setWhatsappConfig({ ...whatsappConfig, displayPhoneNumber: e.target.value })}
                       className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 font-mono text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
                     />
                   </div>

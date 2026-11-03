@@ -32,6 +32,11 @@ service cloud.firestore {
       return resource.data;
     }
 
+    // Connection Health Check
+    match /test/{docId} {
+      allow read: if true;
+    }
+
     // Users Collection
     match /users/{userId} {
       allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());

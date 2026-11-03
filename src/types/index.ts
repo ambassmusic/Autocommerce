@@ -422,6 +422,8 @@ export interface BotSettings {
   whatsappVerifiedName: string;
   whatsappConnected: boolean;
   metaWabaId: string;
+  metaPhoneNumberId?: string;
+  metaAccessToken?: string;
   autoSyncCatalog: boolean;
 
   // Plan
@@ -511,6 +513,10 @@ export interface GeminiKeyRotation {
 
 export interface WhatsAppCloudApiConfig {
   status: 'connected' | 'disconnected';
+  appId?: string;
+  appSecret?: string;
+  systemAccessToken?: string;
+  embeddedSignupEnabled?: boolean;
   wabaId: string;
   phoneNumberId: string;
   displayPhoneNumber: string;

@@ -22,13 +22,13 @@ export interface WhatsAppMessage {
   direction: 'inbound' | 'outbound';
   status: 'sent' | 'delivered' | 'read' | 'failed' | 'received';
   pushName?: string;
-  source: 'baileys_embedded' | 'evolution_api';
+  source: 'baileys_embedded' | 'evolution_api' | 'meta_cloud_waba';
 }
 
 export interface TenantSession {
   tenantId: string;
   instanceName: string;
-  engine: 'baileys_embedded' | 'evolution_api';
+  engine: 'baileys_embedded' | 'evolution_api' | 'meta_cloud_waba';
   status: 'disconnected' | 'connecting' | 'qrcode' | 'connected' | 'reconnecting' | 'error';
   qrCode: string | null;
   qrRaw: string | null;
@@ -52,7 +52,7 @@ export interface EvolutionApiConfig {
 
 class WhatsAppManager {
   private sessions = new Map<string, TenantSession>();
-  private tenantCatalogs = new Map<string, { storeName: string; products: any[] }>();
+  private tenantCatalogs = new Map<string, { storeName: string; products: any[]; settings?: any }>();
   private sessionBaseDir = path.resolve(process.cwd(), 'sessions');
   private evolutionConfig: EvolutionApiConfig = {
     apiUrl: process.env.EVOLUTION_API_URL || '',
@@ -60,11 +60,12 @@ class WhatsAppManager {
     enabled: Boolean(process.env.EVOLUTION_API_URL && process.env.EVOLUTION_API_KEY)
   };
 
-  public setTenantCatalog(tenantId: string, storeName: string, products: any[]) {
+  public setTenantCatalog(tenantId: string, storeName: string, products: any[], settings?: any) {
     const cleanId = tenantId.replace(/[^a-zA-Z0-9_-]/g, '_') || 'default_store';
     this.tenantCatalogs.set(cleanId, {
       storeName: storeName || 'Our WhatsApp Store',
-      products: Array.isArray(products) ? products : []
+      products: Array.isArray(products) ? products : [],
+      settings: settings || null
     });
     console.log(`[Baileys Bot] Synced ${products.length} catalog items for tenant ${cleanId}`);
   }
@@ -488,7 +489,8 @@ class WhatsAppManager {
             pushName,
             text,
             products,
-            storeName
+            storeName,
+            catalogInfo?.settings
           );
 
           const replyText = engineResult.replyText;
@@ -1002,7 +1004,8 @@ class WhatsAppManager {
       customerName,
       userText,
       products,
-      storeName
+      storeName,
+      catalogInfo?.settings
     );
 
     return result.replyText;

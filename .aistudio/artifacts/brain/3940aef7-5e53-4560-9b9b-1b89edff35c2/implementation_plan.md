@@ -1,24 +1,31 @@
-# WhatsApp AI Store & Automation Hub (Retail & Boutique Edition)
+# WhatsApp AI Store & Automation SaaS Platform
 
-An interactive, turnkey WhatsApp conversational commerce and business operations platform tailored for local retail boutiques and high-converting direct-to-consumer businesses, featuring a live dual-pane experience with an interactive WhatsApp chat store simulator, a real-time merchant operations CRM, and real multi-device backend WhatsApp connectivity.
+A multi-tenant conversational commerce SaaS platform enabling independent store owners to automate sales, product catalogs, order processing, and customer support on WhatsApp using official Meta Cloud API infrastructure.
 
-## Core Accomplishments & Architecture
+## SaaS Multi-Tenant WhatsApp Architecture
 
-1. **Multi-Photo Direct File Upload & Camera Snap**:
-   - Merchants can tap "Tap to Upload Photo or Snap Camera" to upload product images directly from their mobile photo library or camera (supporting JPG, PNG, WEBP with multi-file selection).
-   - Every photo thumbnail includes an **always-visible red trash button** (`w-6 h-6`, top-right corner) operable directly on touchscreens without needing hover.
-   - One-tap "Set Cover" and "Clear All" actions.
-   - Secondary option for pasting external web/CDN URLs or picking sample photography angles.
+### 1. Platform Master Meta Configuration (SuperAdmin Console Only)
+All technical developer configurations are isolated strictly within the platform **SuperAdmin Console** (`SuperAdminConsole.tsx`). Individual merchants never touch, view, or enter these technical credentials:
+- **Master Meta App**: `Chat omni` (App ID: `2206505670077954`)
+- **Master Business Manager ID**: `1440312700767064`
+- **Master App Secret & Permanent System User Token**
+- **Webhook Endpoint**: `/api/whatsapp/webhook` with challenge verification (`hub.challenge` returning `200 OK`)
+- **SaaS Master Toggle**: Enables 1-Click Meta Embedded Signup across all tenant stores.
 
-2. **Mobile-Friendly Storefront & Modals**:
-   - Modals use `max-h-[92vh]` with sticky header, scrollable body, and sticky action footers with touch-friendly buttons (`min-h-[44px]`).
-   - Storefront product cards format cleanly on small mobile viewports, stacking images and details with clear stock adjustment and editing controls.
+### 2. Merchant Store Experience (100% Zero-Tech & Zero Developer Fields)
+The Merchant Dashboard (`MerchantDashboard.tsx`) provides a zero-friction, 1-click onboarding experience:
+- **Zero Technical Inputs**: All developer inputs (`Phone Number ID`, `WABA ID`, `Access Token`, and `Webhook Endpoint`) have been completely purged from the merchant UI.
+- **Fresh Account State**: Every new merchant store starts in a fresh, disconnected state (`whatsappConnected: false`, `whatsappPhoneNumber: ''`, `whatsappVerifiedName: ''`).
+- **1-Click WhatsApp Connection**:
+  - **Option 1 (Meta Facebook Login Dialog)**: A single button launches Meta's official OAuth authorization (`https://www.facebook.com/v21.0/dialog/oauth?client_id=2206505670077954...`) with `whatsapp_business_management,whatsapp_business_messaging` permissions.
+  - **Option 2 (Direct Business Phone Link)**: The merchant enters their business phone number (e.g., `+234 803 123 4567`) and taps "Activate WhatsApp (1-Click)". The backend binds their store to the platform's Meta Cloud API infrastructure.
+- **Connected State**:
+  - Displays verified store name, live WhatsApp number, and active AI Concierge status badge.
+  - Action to dispatch a test customer order response.
+  - Single-click "Disconnect WhatsApp" button to cleanly unlink and reset to a fresh state.
 
-3. **External Firestore Cloud Storage & Automatic Catalog Seeding**:
-   - Provisioned Firestore database (`ai-studio-autochatcommerce-3940aef7-5e53-4560-9b9b-1b89edff35c2`) with deployed ABAC security rules.
-   - Automatic seeding of rich preset catalog items if the store collection is empty, ensuring new merchants always start with an operational store.
-   - Synchronized product deletions and updates with Firestore via `deleteStoreProduct` and `saveStoreProduct`.
-
-4. **Live WhatsApp Bot Catalog Sync**:
-   - Client automatically syncs current products and prices to `/api/whatsapp/catalog`.
-   - Baileys Multi-Device bot dynamically queries and answers catalog inquiries, sends product cards, and handles order flows in real-time.
+### 3. Backend Implementation (`server.ts`)
+- `GET /api/whatsapp/embedded-signup/config`: Returns the master Meta App ID and Business ID.
+- `POST /api/whatsapp/embedded-signup/connect`: Binds a merchant store's phone number and business name to the platform's WhatsApp routing engine.
+- `POST /api/whatsapp/meta-disconnect`: Cleanly unlinks the session and resets store settings.
+- `GET/POST /api/whatsapp/webhook`: Handles Meta webhook challenge verification and incoming customer messages via `whatsappOrderEngine.ts`.

@@ -1,6 +1,6 @@
 {
-  "summary":  "Implementation plan for WhatsApp AI Store & Automation Hub, including image direct file upload, touch-friendly image delete, Firestore automatic catalog seeding, backend catalog syncing, and mobile-friendly storefront interface.",
-  "updatedAt":  "2026-11-01T13:20:20.220954936Z",
-  "requestFeedback":  true,
-  "userFacing":  true
+  "summary": "Documentation of the SaaS multi-tenant WhatsApp architecture: platform Meta App (Chat omni, App ID 2206505670077954, Business ID 1440312700767064) configured exclusively in the SuperAdmin Console, and pure 1-Click WhatsApp Onboarding (with zero developer keys) on the Merchant Dashboard.",
+  "updatedAt": "2026-11-03T11:46:40.716320315Z",
+  "requestFeedback": true,
+  "userFacing": true
 }
